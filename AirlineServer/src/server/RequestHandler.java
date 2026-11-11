@@ -14,7 +14,9 @@ import model.User;
 
 import java.io.*;
 import java.net.Socket;
+import java.sql.*;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -87,6 +89,8 @@ public class RequestHandler implements Runnable {
                     return handleDeleteUser((DeleteUserRequest) request);
                 case "UPDATE_USER":
                     return handleUpdateUser((UpdateUserRequest) request);
+                case "GENERATE_REPORT":
+                    return handleGenerateReport((GenerateReportRequest) request);
                 default:
                     return new Response(false, "Unknown request type: " + request.getRequestType()) {};
             }
@@ -197,7 +201,113 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    // ===== End User Management Handlers =====
+    // ===== Report Generation Handler =====
+    
+    private GenerateReportResponse handleGenerateReport(GenerateReportRequest request) {
+        try (Connection con = DB.DBConnection.getConnection()) {
+            String sql = "";
+            String reportTitle = "";
+            String fileName = "";
+            
+            GenerateReportRequest.ReportType type = request.getReportType();
+            
+            switch (type) {
+                case PASSENGERS:
+                    sql = "SELECT passenger_id, first_name, last_name, nationality, passport_number FROM passengers";
+                    reportTitle = "PASSENGER MANIFEST";
+                    fileName = "All_Passengers_Report.pdf";
+                    break;
+                case FLIGHTS:
+                    sql = "SELECT f.flight_number, a1.city as origin, a2.city as dest, fs.departure_time "
+                            + "FROM flight_schedules fs JOIN flights f ON fs.flight_id = f.flight_id "
+                            + "JOIN airports a1 ON f.origin_airport = a1.airport_code "
+                            + "JOIN airports a2 ON f.dest_airport = a2.airport_code";
+                    reportTitle = "FLIGHT SCHEDULES";
+                    fileName = "All_Flights_Report.pdf";
+                    break;
+                case AIRPORTS:
+                    sql = "SELECT airport_code, city, country FROM airports";
+                    reportTitle = "AIRPORTS & ROUTES";
+                    fileName = "Airports_Network.pdf";
+                    break;
+                case AIRCRAFT:
+                    sql = "SELECT a.model, a.total_capacity, al.name as airline_name "
+                            + "FROM aircrafts a JOIN airlines al ON a.airline_id = al.airline_id";
+                    reportTitle = "AIRCRAFT FLEET DETAILS";
+                    fileName = "Aircraft_Fleet.pdf";
+                    break;
+                case AIRLINES:
+                    sql = "SELECT airline_id, name, iata_code FROM airlines";
+                    reportTitle = "REGISTERED AIRLINES";
+                    fileName = "Airlines_Directory.pdf";
+                    break;
+                case TICKETS:
+                    // For ticket receipt, we need passengerId and scheduleId
+                    sql = "SELECT p.first_name, p.last_name, p.passport_number, f.flight_number, "
+                            + "a1.city as origin, a2.city as dest, fs.departure_time, fs.arrival_time "
+                            + "FROM passengers p "
+                            + "JOIN bookings b ON p.passenger_id = b.passenger_id "
+                            + "JOIN flight_schedules fs ON b.schedule_id = fs.schedule_id "
+                            + "JOIN flights f ON fs.flight_id = f.flight_id "
+                            + "JOIN airports a1 ON f.origin_airport = a1.airport_code "
+                            + "JOIN airports a2 ON f.dest_airport = a2.airport_code "
+                            + "WHERE p.passenger_id = ? AND fs.schedule_id = ?";
+                    
+                    try (PreparedStatement pst = con.prepareStatement(sql)) {
+                        pst.setInt(1, request.getPassengerId());
+                        pst.setInt(2, request.getScheduleId());
+                        ResultSet rs = pst.executeQuery();
+                        
+                        List<String[]> headers = new ArrayList<>();
+                        headers.add(new String[]{"Field", "Value"});
+                        
+                        List<String[]> rows = new ArrayList<>();
+                        if (rs.next()) {
+                            rows.add(new String[]{"Passenger", rs.getString("first_name") + " " + rs.getString("last_name")});
+                            rows.add(new String[]{"Passport", rs.getString("passport_number")});
+                            rows.add(new String[]{"Flight", rs.getString("flight_number")});
+                            rows.add(new String[]{"From", rs.getString("origin")});
+                            rows.add(new String[]{"To", rs.getString("dest")});
+                            rows.add(new String[]{"Departure", rs.getString("departure_time")});
+                            rows.add(new String[]{"Arrival", rs.getString("arrival_time")});
+                        }
+                        
+                        return new GenerateReportResponse(true, "TICKET RECEIPT", headers, rows, "Ticket_Receipt_Passenger_" + request.getPassengerId() + ".pdf");
+                    }
+                default:
+                    return new GenerateReportResponse(false, "Unknown report type: " + type);
+            }
+            
+            // Execute the query for standard table reports
+            try (PreparedStatement pst = con.prepareStatement(sql); ResultSet rs = pst.executeQuery()) {
+                ResultSetMetaData metaData = rs.getMetaData();
+                int columnCount = metaData.getColumnCount();
+                
+                List<String[]> headers = new ArrayList<>();
+                String[] headerRow = new String[columnCount];
+                for (int i = 1; i <= columnCount; i++) {
+                    headerRow[i-1] = metaData.getColumnName(i);
+                }
+                headers.add(headerRow);
+                
+                List<String[]> rows = new ArrayList<>();
+                while (rs.next()) {
+                    String[] row = new String[columnCount];
+                    for (int i = 1; i <= columnCount; i++) {
+                        row[i-1] = rs.getString(i);
+                    }
+                    rows.add(row);
+                }
+                
+                return new GenerateReportResponse(true, reportTitle, headers, rows, fileName);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new GenerateReportResponse(false, "Server error: " + e.getMessage());
+        }
+    }
+    
+    // ===== End Report Generation Handler =====
     
     private void sendResponse(Response response) {
         try {

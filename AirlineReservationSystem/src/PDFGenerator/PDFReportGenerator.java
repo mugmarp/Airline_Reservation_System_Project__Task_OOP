@@ -4,124 +4,152 @@
  */
 package PDFGenerator;
 
-/**
- *
- * @author Administrator
- */
-import DB.DBConnection;
 import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.*;
 import java.io.FileOutputStream;
 import java.io.File;
-import java.sql.*;
+import java.util.List;
 
+/**
+ * PDF Report Generator - Client-side PDF generation from server-provided data.
+ * No direct database access - receives data from server via ClientStub.
+ */
 public class PDFReportGenerator {
 
-    File reportDir = new File("src/generated_PDFs");
+    private File reportDir = new File("src/generated_PDFs");
 
-    // REPORT 1: Passenger Ticket Receipt
-    public void generateTicketReceipt(int passengerId, int scheduleId) {
+    /**
+     * Generate a ticket receipt PDF from server-provided data.
+     * @param reportTitle Title of the report (e.g., "TICKET RECEIPT")
+     * @param headers Column headers (List of String arrays, typically 1 row with field names)
+     * @param rows Data rows (List of String arrays)
+     * @param fileName Output file name
+     */
+    public void generateReport(String reportTitle, List<String[]> headers, List<String[]> rows, String fileName) {
         try {
+            if (!reportDir.exists()) {
+                reportDir.mkdirs();
+            }
+            File targetFile = new File(reportDir, fileName);
+            
             Document document = new Document();
-
-            File saveFile = new File(reportDir, "Ticket_Receipt_Passenger_" + passengerId + ".pdf");
-            PdfWriter.getInstance(document, new FileOutputStream(saveFile));
-            document.open();
-
-            Font titleFont = new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD);
-            document.add(new Paragraph("ENTEBBE AIRLINES - TICKET RECEIPT", titleFont));
-            document.add(new Paragraph(" "));
-
-            Paragraph p = new Paragraph("Passenger ID: " + passengerId + " | Schedule ID: " + scheduleId);
-            document.add(p);
-            document.add(new Paragraph("Status: CONFIRMED"));
-            document.add(new Paragraph("Thank you for flying with us!"));
-
-            document.close();
-            System.out.println("Ticket PDF generated successfully.");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // REPORT 2: All Passengers List
-    public void generateAllPassengersReport() {
-        generateTableReport("All_Passengers_Report.pdf", "PASSENGER MANIFEST", "SELECT passenger_id, first_name, last_name, nationality, passport_number FROM passengers");
-    }
-
-    // REPORT 3: All Flights Schedule
-    public void generateAllFlightsReport() {
-        String sql = "SELECT f.flight_number, a1.city as origin, a2.city as dest, fs.departure_time "
-                + "FROM flight_schedules fs JOIN flights f ON fs.flight_id = f.flight_id "
-                + "JOIN airports a1 ON f.origin_airport = a1.airport_code "
-                + "JOIN airports a2 ON f.dest_airport = a2.airport_code";
-        generateTableReport("All_Flights_Report.pdf", "FLIGHT SCHEDULES", sql);
-    }
-
-    // REPORT 4: Airports & Routes Network
-    public void generateAirportsReport() {
-        generateTableReport("Airports_Network.pdf", "AIRPORTS & ROUTES", "SELECT airport_code, city, country FROM airports");
-    }
-
-    // REPORT 5: Aircraft Fleet Details
-    public void generateAircraftFleetReport() {
-        String sql = "SELECT a.model, a.total_capacity, al.name as airline_name " + "FROM aircrafts a JOIN airlines al ON a.airline_id = al.airline_id";
-        generateTableReport("Aircraft_Fleet.pdf", "AIRCRAFT FLEET DETAILS", sql);
-    }
-
-    // REPORT 6: Airlines Directory
-    public void generateAirlinesReport() {
-        generateTableReport("Airlines_Directory.pdf", "REGISTERED AIRLINES", "SELECT airline_id, name, iata_code FROM airlines");
-    }
-
-    // --- HELPER METHOD TO AVOID REPEATING CODE ---
-    private void generateTableReport(String fileName, String reportTitle, String sql) {
-
-        // crete the folder if it does not exist
-        if (!reportDir.exists()) {
-            reportDir.mkdirs();
-        }
-        // now combining the file name with directory
-        File targetFILE = new File(reportDir, fileName);
-        try {
-            Document document = new Document();
-            PdfWriter.getInstance(document, new FileOutputStream(targetFILE));
+            PdfWriter.getInstance(document, new FileOutputStream(targetFile));
             document.open();
 
             Font titleFont = new Font(Font.FontFamily.HELVETICA, 16, Font.BOLD);
             document.add(new Paragraph(reportTitle, titleFont));
             document.add(new Paragraph(" "));
 
-            try (Connection conn = DBConnection.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            // Determine column count from headers
+            int columns = headers.isEmpty() ? 0 : headers.get(0).length;
+            if (columns == 0 && !rows.isEmpty()) {
+                columns = rows.get(0).length;
+            }
 
-                ResultSetMetaData metaData = rs.getMetaData();
-                int columns = metaData.getColumnCount();
-
-                // Create PDF Table
+            if (columns > 0) {
                 PdfPTable table = new PdfPTable(columns);
                 table.setWidthPercentage(100);
 
-                // Adding Headers
-                for (int i = 1; i <= columns; i++) {
-                    PdfPCell cell = new PdfPCell(new Phrase(metaData.getColumnName(i)));
-                    cell.setBackgroundColor(BaseColor.LIGHT_GRAY);
-                    table.addCell(cell);
+                // Add Headers
+                for (String[] headerRow : headers) {
+                    for (String header : headerRow) {
+                        PdfPCell cell = new PdfPCell(new Phrase(header));
+                        cell.setBackgroundColor(BaseColor.LIGHT_GRAY);
+                        table.addCell(cell);
+                    }
                 }
 
-                // ADDING Data Rows
-                while (rs.next()) {
-                    for (int i = 1; i <= columns; i++) {
-                        table.addCell(rs.getString(i));
+                // Add Data Rows
+                for (String[] row : rows) {
+                    for (String cellValue : row) {
+                        table.addCell(cellValue != null ? cellValue : "");
                     }
                 }
                 document.add(table);
             }
-            document.close();
-            String message = (fileName + " generated successfully. Saved at :" + targetFILE);
 
-            System.out.println(fileName + " generated successfully. Saved at :" + targetFILE);
+            document.close();
+            System.out.println(fileName + " generated successfully. Saved at: " + targetFile);
         } catch (Exception e) {
             System.err.println("Error generating " + fileName + ": " + e.getMessage());
+            e.printStackTrace();
         }
+    }
+
+    /**
+     * Generate a simple key-value ticket receipt (field-value pairs).
+     * Used for ticket receipts where data is field-value pairs.
+     */
+    public void generateTicketReceipt(String reportTitle, List<String[]> fields, String fileName) {
+        try {
+            if (!reportDir.exists()) {
+                reportDir.mkdirs();
+            }
+            File targetFile = new File(reportDir, fileName);
+            
+            Document document = new Document();
+            PdfWriter.getInstance(document, new FileOutputStream(targetFile));
+            document.open();
+
+            Font titleFont = new Font(Font.FontFamily.HELVETICA, 18, Font.BOLD);
+            document.add(new Paragraph("ENTEBBE AIRLINES - " + reportTitle, titleFont));
+            document.add(new Paragraph(" "));
+
+            PdfPTable table = new PdfPTable(2);
+            table.setWidthPercentage(100);
+            
+            // Add field-value pairs
+            for (String[] field : fields) {
+                if (field.length >= 2) {
+                    PdfPCell labelCell = new PdfPCell(new Phrase(field[0]));
+                    labelCell.setBackgroundColor(BaseColor.LIGHT_GRAY);
+                    table.addCell(labelCell);
+                    table.addCell(field[1]);
+                }
+            }
+            
+            document.add(table);
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph("Status: CONFIRMED"));
+            document.add(new Paragraph("Thank you for flying with us!"));
+
+            document.close();
+            System.out.println(fileName + " generated successfully. Saved at: " + targetFile);
+        } catch (Exception e) {
+            System.err.println("Error generating " + fileName + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // ===== Legacy methods (not used in client-server mode, kept for reference) ====
+    
+    // @Deprecated - uses direct DB access, not for client-server mode
+    public void generateTicketReceipt(int passengerId, int scheduleId) {
+        System.err.println("WARNING: Legacy generateTicketReceipt uses direct DB access. Use generateReport() with server data instead.");
+    }
+
+    @Deprecated
+    public void generateAllPassengersReport() {
+        System.err.println("WARNING: Legacy method uses direct DB access.");
+    }
+
+    @Deprecated
+    public void generateAllFlightsReport() {
+        System.err.println("WARNING: Legacy method uses direct DB access.");
+    }
+
+    @Deprecated
+    public void generateAirportsReport() {
+        System.err.println("WARNING: Legacy method uses direct DB access.");
+    }
+
+    @Deprecated
+    public void generateAircraftFleetReport() {
+        System.err.println("WARNING: Legacy method uses direct DB access.");
+    }
+
+    @Deprecated
+    public void generateAirlinesReport() {
+        System.err.println("WARNING: Legacy method uses direct DB access.");
     }
 }

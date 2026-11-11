@@ -184,7 +184,17 @@ public class ClientStub {
         sendRequest(request, r -> handler.accept((UpdateUserResponse) r));
     }
 
-    // ===== End User Management Methods =====
+    // ===== Report Generation Methods =====
+    
+    public void generateReport(GenerateReportRequest.ReportType type, Consumer<GenerateReportResponse> handler) {
+        sendRequest(new GenerateReportRequest(type), r -> handler.accept((GenerateReportResponse) r));
+    }
+    
+    public void generateReport(GenerateReportRequest.ReportType type, int passengerId, int scheduleId, Consumer<GenerateReportResponse> handler) {
+        sendRequest(new GenerateReportRequest(type, passengerId, scheduleId), r -> handler.accept((GenerateReportResponse) r));
+    }
+
+    // ===== End Report Generation Methods =====
     
     public void disconnect() {
         connected = false;

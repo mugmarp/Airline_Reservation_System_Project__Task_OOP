@@ -4,15 +4,25 @@
  */
 package frames;
 
+import client.ClientStub;
+import protocol.GenerateReportRequest;
+import protocol.GenerateReportResponse;
 import PDFGenerator.PDFReportGenerator;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import java.util.List;
 
 /**
- *
- * @author Administrator
+ * Report Dialog - generates reports by fetching data from server via ClientStub,
+ * then generates PDF locally using PDFReportGenerator.
  */
 public class ReportDialog extends javax.swing.JFrame {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(ReportDialog.class.getName());
+
+    // Client-side stub for async server communication
+    private final ClientStub clientStub = new ClientStub();
+    private final PDFReportGenerator pdfGen = new PDFReportGenerator();
 
     /**
      * Creates new form ReportDialog
@@ -20,6 +30,89 @@ public class ReportDialog extends javax.swing.JFrame {
     public ReportDialog() {
         initComponents();
         setLocationRelativeTo(null);
+        
+        // Connect to server
+        if (!clientStub.connect()) {
+            JOptionPane.showMessageDialog(this,
+                "Could not connect to server. Please start the server first.",
+                "Connection Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Generate a report by fetching data from server and generating PDF locally.
+     */
+    private void generateReport(GenerateReportRequest.ReportType reportType, String buttonLabel) {
+        // Disable the button that was clicked
+        disableButton(buttonLabel);
+        
+        clientStub.generateReport(reportType, response -> {
+            SwingUtilities.invokeLater(() -> {
+                enableButton(buttonLabel);
+                
+                if (response.isSuccess()) {
+                    // Generate PDF locally from server-provided data
+                    pdfGen.generateReport(
+                        response.getReportTitle(),
+                        response.getHeaders(),
+                        response.getRows(),
+                        response.getFileName()
+                    );
+                    JOptionPane.showMessageDialog(this, 
+                        "Report saved as: " + response.getFileName(), 
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "Failed to generate report: " + response.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            });
+        });
+    }
+
+    /**
+     * Generate ticket receipt (requires passengerId and scheduleId).
+     */
+    private void generateTicketReport() {
+        // Prompt for passenger ID and schedule ID
+        String passengerIdStr = JOptionPane.showInputDialog(this, "Enter Passenger ID:", "Ticket Receipt", JOptionPane.QUESTION_MESSAGE);
+        if (passengerIdStr == null || passengerIdStr.trim().isEmpty()) return;
+        
+        String scheduleIdStr = JOptionPane.showInputDialog(this, "Enter Schedule ID:", "Ticket Receipt", JOptionPane.QUESTION_MESSAGE);
+        if (scheduleIdStr == null || scheduleIdStr.trim().isEmpty()) return;
+        
+        try {
+            int passengerId = Integer.parseInt(passengerIdStr.trim());
+            int scheduleId = Integer.parseInt(scheduleIdStr.trim());
+            
+            btnReportTickets.setEnabled(false);
+            btnReportTickets.setText("Generating...");
+            
+            clientStub.generateReport(GenerateReportRequest.ReportType.TICKETS, passengerId, scheduleId, response -> {
+                SwingUtilities.invokeLater(() -> {
+                    btnReportTickets.setEnabled(true);
+                    btnReportTickets.setText("6. Ticket Receipts");
+                    
+                    if (response.isSuccess()) {
+                        // For ticket receipt, use the special generateTicketReceipt method
+                        pdfGen.generateTicketReceipt(
+                            response.getReportTitle(),
+                            response.getRows(), // rows contain field-value pairs
+                            response.getFileName()
+                        );
+                        JOptionPane.showMessageDialog(this, 
+                            "Ticket receipt saved as: " + response.getFileName(), 
+                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, 
+                            "Failed to generate ticket: " + response.getMessage(), 
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            });
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Invalid ID format.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     /**
@@ -98,25 +191,28 @@ public class ReportDialog extends javax.swing.JFrame {
 
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addGap(22, 22, 22)
-                .addComponent(lblReportTitle, javax.swing.GroupLayout.PREFERRED_SIZE, 36, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(52, 52, 52)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(btnReportPassengers)
-                    .addComponent(btnReportFlights))
-                .addGap(32, 32, 32)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(btnReportAirports)
-                    .addComponent(btnReportAircraft))
-                .addGap(45, 45, 45)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(btnReportAirlines)
-                    .addComponent(btnReportTickets))
-                .addGap(69, 69, 69)
-                .addComponent(btnCloseReports)
-                .addContainerGap(79, Short.MAX_VALUE))
+            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(layout.createSequentialGroup()
+                    .addGap(22, 22, 22)
+                    .addComponent(lblReportTitle, javax.swing.GroupLayout.PREFERRED_SIZE, 36, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addGap(52, 52, 52)
+                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(btnReportPassengers)
+                        .addComponent(btnReportFlights))
+                    .addGap(32, 32, 32)
+                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(btnReportAirports)
+                        .addComponent(btnReportAircraft))
+                    .addGap(45, 45, 45)
+                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                        .addComponent(btnReportAirlines)
+                        .addComponent(btnReportTickets))
+                    .addGap(69, 69, 69)
+                    .addComponent(btnCloseReports)
+                    .addContainerGap(79, Short.MAX_VALUE)))
         );
+
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {btnReportAircraft, btnReportAirlines, btnReportAirports, btnReportFlights, btnReportPassengers, btnReportTickets});
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
@@ -126,36 +222,91 @@ public class ReportDialog extends javax.swing.JFrame {
     }//GEN-LAST:event_btnCloseReportsActionPerformed
 
     private void btnReportPassengersActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportPassengersActionPerformed
-        PDFReportGenerator pdfGen = new PDFReportGenerator();
-        pdfGen.generateAllPassengersReport();
-        javax.swing.JOptionPane.showMessageDialog(this, "Passenger report saved!", "Success", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+        generateReport(GenerateReportRequest.ReportType.PASSENGERS, "1. Generate All Passengers Manifest");
     }//GEN-LAST:event_btnReportPassengersActionPerformed
 
     private void btnReportFlightsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportFlightsActionPerformed
-        PDFReportGenerator pdfGen = new PDFReportGenerator();
-        pdfGen.generateAllFlightsReport();
-        javax.swing.JOptionPane.showMessageDialog(this, "All Flights report saved!", "Success", javax.swing.JOptionPane.INFORMATION_MESSAGE);
-
+        generateReport(GenerateReportRequest.ReportType.FLIGHTS, "2. Generate All Flight Schedules");
     }//GEN-LAST:event_btnReportFlightsActionPerformed
 
     private void btnReportAirportsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportAirportsActionPerformed
-        PDFReportGenerator pdfGen = new PDFReportGenerator();
-        pdfGen.generateAirportsReport();
-        javax.swing.JOptionPane.showMessageDialog(this, "Airports Network report saved!", "Success", javax.swing.JOptionPane.INFORMATION_MESSAGE);
-
+        generateReport(GenerateReportRequest.ReportType.AIRPORTS, "3. Generate Airports Network");
     }//GEN-LAST:event_btnReportAirportsActionPerformed
 
     private void btnReportAircraftActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportAircraftActionPerformed
-        // TODO add your handling code here:
+        generateReport(GenerateReportRequest.ReportType.AIRCRAFT, "4. Generate Aircraft Fleet Details");
     }//GEN-LAST:event_btnReportAircraftActionPerformed
 
     private void btnReportAirlinesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportAirlinesActionPerformed
-        // TODO add your handling code here:
+        generateReport(GenerateReportRequest.ReportType.AIRLINES, "5. Generate Airlines Directory");
     }//GEN-LAST:event_btnReportAirlinesActionPerformed
 
     private void btnReportTicketsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnReportTicketsActionPerformed
-        // TODO add your handling code here:
+        generateTicketReport();
     }//GEN-LAST:event_btnReportTicketsActionPerformed
+
+    private void btnCloseReportsActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCloseReportsActionPerformed
+        this.dispose();
+    }//GEN-LAST:event_btnCloseReportsActionPerformed
+
+    // Helper methods to disable/enable buttons during async operations
+    private void disableButton(String buttonLabel) {
+        switch (buttonLabel) {
+            case "1. Generate All Passengers Manifest":
+                btnReportPassengers.setEnabled(false);
+                btnReportPassengers.setText("Generating...");
+                break;
+            case "2. Generate All Flight Schedules":
+                btnReportFlights.setEnabled(false);
+                btnReportFlights.setText("Generating...");
+                break;
+            case "3. Generate Airports Network":
+                btnReportAirports.setEnabled(false);
+                btnReportAirports.setText("Generating...");
+                break;
+            case "4. Generate Aircraft Fleet Details":
+                btnReportAircraft.setEnabled(false);
+                btnReportAircraft.setText("Generating...");
+                break;
+            case "5. Generate Airlines Directory":
+                btnReportAirlines.setEnabled(false);
+                btnReportAirlines.setText("Generating...");
+                break;
+            case "6. Ticket Receipts":
+                btnReportTickets.setEnabled(false);
+                btnReportTickets.setText("Generating...");
+                break;
+        }
+    }
+
+    private void enableButton(String buttonLabel) {
+        switch (buttonLabel) {
+            case "1. Generate All Passengers Manifest":
+                btnReportPassengers.setEnabled(true);
+                btnReportPassengers.setText("1. Generate All Passengers Manifest");
+                break;
+            case "2. Generate All Flight Schedules":
+                btnReportFlights.setEnabled(true);
+                btnReportFlights.setText("2. Generate All Flight Schedules");
+                break;
+            case "3. Generate Airports Network":
+                btnReportAirports.setEnabled(true);
+                btnReportAirports.setText("3. Generate Airports Network");
+                break;
+            case "4. Generate Aircraft Fleet Details":
+                btnReportAircraft.setEnabled(true);
+                btnReportAircraft.setText("4. Generate Aircraft Fleet Details");
+                break;
+            case "5. Generate Airlines Directory":
+                btnReportAirlines.setEnabled(true);
+                btnReportAirlines.setText("5. Generate Airlines Directory");
+                break;
+            case "6. Ticket Receipts":
+                btnReportTickets.setEnabled(true);
+                btnReportTickets.setText("6. Ticket Receipts");
+                break;
+        }
+    }
 
     /**
      * @param args the command line arguments
