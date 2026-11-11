@@ -8,9 +8,11 @@ import protocol.*;
 import dao.passengerDAO;
 import dao.flightDAO;
 import dao.UserDAO;
+import dao.CheckInDAO;
 import model.passenger;
 import model.flight;
 import model.User;
+import model.BookingInfo;
 
 import java.io.*;
 import java.net.Socket;
@@ -32,6 +34,7 @@ public class RequestHandler implements Runnable {
     private final passengerDAO passengerDAO = new passengerDAO();
     private final flightDAO flightDAO = new flightDAO();
     private final UserDAO userDAO = new UserDAO();
+    private final CheckInDAO checkInDAO = new CheckInDAO();
     private boolean running = true;
     
     public RequestHandler(Socket clientSocket) {
@@ -91,6 +94,10 @@ public class RequestHandler implements Runnable {
                     return handleUpdateUser((UpdateUserRequest) request);
                 case "GENERATE_REPORT":
                     return handleGenerateReport((GenerateReportRequest) request);
+                case "FIND_BOOKING_CHECKIN":
+                    return handleFindBookingCheckIn((FindBookingForCheckInRequest) request);
+                case "CONFIRM_CHECKIN":
+                    return handleConfirmCheckIn((ConfirmCheckInRequest) request);
                 default:
                     return new Response(false, "Unknown request type: " + request.getRequestType()) {};
             }
@@ -326,4 +333,36 @@ public class RequestHandler implements Runnable {
             if (clientSocket != null && !clientSocket.isClosed()) clientSocket.close();
         } catch (IOException ignored) {}
     }
+
+    // ===== Check-In Handlers =====
+    
+    private FindBookingForCheckInResponse handleFindBookingCheckIn(FindBookingForCheckInRequest request) {
+        BookingInfo booking = checkInDAO.findBookingByPassport(request.getPassportNumber());
+        if (booking != null) {
+            return new FindBookingForCheckInResponse(true, booking);
+        } else {
+            return new FindBookingForCheckInResponse(false, "No booking found for this passport number");
+        }
+    }
+    
+    private ConfirmCheckInResponse handleConfirmCheckIn(ConfirmCheckInRequest request) {
+        // Generate seat if not provided
+        String seat = request.getSeat();
+        if (seat == null || seat.isEmpty()) {
+            seat = checkInDAO.generateRandomSeat();
+        }
+        
+        boolean confirmed = checkInDAO.confirmCheckIn(request.getBookingId(), seat);
+        if (confirmed) {
+            ConfirmCheckInResponse response = new ConfirmCheckInResponse(true, seat);
+            // Add boarding pass data for PDF generation
+            String boardingPassData = "Booking confirmed. Seat: " + seat;
+            response.setBoardingPassData(boardingPassData);
+            return response;
+        } else {
+            return new ConfirmCheckInResponse(false, "Failed to confirm check-in", null);
+        }
+    }
+
+    // ===== End Check-In Handlers =====
 }

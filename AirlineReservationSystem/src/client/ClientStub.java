@@ -8,6 +8,7 @@ import protocol.*;
 import model.passenger;
 import model.flight;
 import model.User;
+import model.BookingInfo;
 import Config.Config;
 
 import java.io.*;
@@ -194,7 +195,17 @@ public class ClientStub {
         sendRequest(new GenerateReportRequest(type, passengerId, scheduleId), r -> handler.accept((GenerateReportResponse) r));
     }
 
-    // ===== End Report Generation Methods =====
+    // ===== Check-In Methods =====
+    
+    public void findBookingForCheckIn(String passportNumber, Consumer<FindBookingForCheckInResponse> handler) {
+        sendRequest(new FindBookingForCheckInRequest(passportNumber), r -> handler.accept((FindBookingForCheckInResponse) r));
+    }
+    
+    public void confirmCheckIn(int bookingId, String seat, Consumer<ConfirmCheckInResponse> handler) {
+        sendRequest(new ConfirmCheckInRequest(bookingId, seat), r -> handler.accept((ConfirmCheckInResponse) r));
+    }
+
+    // ===== End Check-In Methods =====
     
     public void disconnect() {
         connected = false;

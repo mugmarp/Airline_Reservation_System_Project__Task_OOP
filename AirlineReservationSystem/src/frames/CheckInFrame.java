@@ -4,24 +4,43 @@
  */
 package frames;
 
-import javax.swing.*;
+import client.ClientStub;
+import protocol.FindBookingForCheckInRequest;
+import protocol.FindBookingForCheckInResponse;
+import protocol.ConfirmCheckInRequest;
+import protocol.ConfirmCheckInResponse;
+import model.BookingInfo;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import java.time.format.DateTimeFormatter;
 
 /**
- *
- * @author Administrator
+ * Check-In Frame - uses ClientStub to find booking by passport,
+ * display flight info, assign seat, and confirm check-in.
  */
-
-public class CheckInFrame
-
-    extenjcalendar-1.4.jards javax.swing.JFrame {
+public class CheckInFrame extends javax.swing.JFrame {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(CheckInFrame.class.getName());
+
+    // Client-side stub for async server communication
+    private final ClientStub clientStub = new ClientStub();
+    
+    // Current booking info found for check-in
+    private model.BookingInfo currentBooking;
 
     /**
      * Creates new form CheckInFrame
      */
     public CheckInFrame() {
         initComponents();
+        setLocationRelativeTo(null);
+        
+        // Connect to server
+        if (!clientStub.connect()) {
+            JOptionPane.showMessageDialog(this,
+                "Could not connect to server. Please start the server first.",
+                "Connection Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     /**
@@ -82,38 +101,37 @@ public class CheckInFrame
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                .addGroup(layout.createSequentialGroup()
+                    .addGap(142, 142, 142)
+                    .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 390, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(142, 142, 142)
-                        .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 390, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                        .addGroup(layout.createSequentialGroup()
-                            .addGap(30, 30, 30)
-                            .addComponent(btnPrintPass)
-                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(btnBackToMain))
-                        .addGroup(layout.createSequentialGroup()
-                            .addGap(18, 18, 18)
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                                    .addComponent(btnConfirmCheckIn)
-                                    .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
-                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                            .addComponent(lblFlightDetails)
-                                            .addComponent(lblSeat)
-                                            .addComponent(lblPassengerName))
-                                        .addGap(24, 24, 24)
-                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                                            .addComponent(txtPassengerName, javax.swing.GroupLayout.DEFAULT_SIZE, 228, Short.MAX_VALUE)
-                                            .addComponent(txtFlightDetails, javax.swing.GroupLayout.DEFAULT_SIZE, 203, Short.MAX_VALUE)
-                                            .addComponent(txtSeat))))
+                        .addGap(30, 30, 30)
+                        .addComponent(btnPrintPass)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(btnBackToMain))
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(18, 18, 18)
+                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                                .addComponent(btnConfirmCheckIn)
+                                .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
+                                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addComponent(lblFlightDetails)
+                                        .addComponent(lblSeat)
+                                        .addComponent(lblPassengerName))
+                                    .addGap(24, 24, 24)
+                                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addComponent(txtPassengerName, javax.swing.GroupLayout.DEFAULT_SIZE, 228, Short.MAX_VALUE)
+                                        .addComponent(txtFlightDetails, javax.swing.GroupLayout.DEFAULT_SIZE, 203, Short.MAX_VALUE)
+                                        .addComponent(txtSeat)))))
                                 .addGroup(layout.createSequentialGroup()
                                     .addComponent(lblPassport, javax.swing.GroupLayout.PREFERRED_SIZE, 114, javax.swing.GroupLayout.PREFERRED_SIZE)
                                     .addGap(24, 24, 24)
                                     .addComponent(txtPassport, javax.swing.GroupLayout.PREFERRED_SIZE, 244, javax.swing.GroupLayout.PREFERRED_SIZE)
                                     .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                                    .addComponent(btnFindBooking))))))
+                                    .addComponent(btnFindBooking)))))
                 .addContainerGap(21, Short.MAX_VALUE))
         );
 
@@ -153,24 +171,166 @@ public class CheckInFrame
                 .addContainerGap(32, Short.MAX_VALUE))
         );
 
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {lblFlightDetails, lblPassengerName, lblPassport, lblSeat});
+
+        layout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {txtFlightDetails, txtPassengerName, txtSeat});
+
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnBackToMainActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnBackToMainActionPerformed
-        // TODO add your handling code here:
+        this.dispose();
+        // Return to main frame or agent actions
+        new MainFrame().setVisible(true);
     }//GEN-LAST:event_btnBackToMainActionPerformed
 
     private void btnConfirmCheckInActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnConfirmCheckInActionPerformed
-        // TODO add your handling code here:
+        if (currentBooking == null) {
+            JOptionPane.showMessageDialog(this, "No booking loaded. Please find a booking first.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        if (currentBooking.isCheckedIn()) {
+            JOptionPane.showMessageDialog(this, "This passenger is already checked in!", "Already Checked In", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        // Get seat from field or auto-generate
+        String seat = txtSeat.getText().trim();
+        
+        btnConfirmCheckIn.setEnabled(false);
+        btnConfirmCheckIn.setText("Checking In...");
+        
+        clientStub.confirmCheckIn(currentBooking.getBookingId(), seat, response -> {
+            SwingUtilities.invokeLater(() -> {
+                btnConfirmCheckIn.setEnabled(true);
+                btnConfirmCheckIn.setText("Confirm Check-In");
+                
+                if (response.isSuccess()) {
+                    String assignedSeat = response.getSeat();
+                    txtSeat.setText(assignedSeat);
+                    currentBooking.setSeat(assignedSeat);
+                    currentBooking.setCheckedIn(true);
+                    
+                    JOptionPane.showMessageDialog(this, 
+                        "Check-in successful!\nSeat assigned: " + assignedSeat, 
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                    
+                    // Enable boarding pass button
+                    btnPrintPass.setEnabled(true);
+                } else {
+                    JOptionPane.showMessageDialog(this, 
+                        "Check-in failed: " + response.getMessage(), 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            });
+        });
     }//GEN-LAST:event_btnConfirmCheckInActionPerformed
 
     private void btnPrintPassActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPrintPassActionPerformed
-        // TODO add your handling code here:
+        if (currentBooking == null || !currentBooking.isCheckedIn()) {
+            JOptionPane.showMessageDialog(this, "No checked-in booking to print.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // Generate boarding pass PDF
+        PDFReportGenerator pdfGen = new PDFReportGenerator();
+        pdfGen.generateTicketReceipt(
+            "BOARDING PASS",
+            new String[][]{
+                {"Passenger", currentBooking.getPassengerName()},
+                {"Passport", currentBooking.getPassportNumber()},
+                {"Flight", currentBooking.getFlightNumber()},
+                {"From", currentBooking.getOrigin()},
+                {"To", currentBooking.getDestination()},
+                {"Departure", currentBooking.getDepartureTime() != null ? currentBooking.getDepartureTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : ""},
+                {"Arrival", currentBooking.getArrivalTime() != null ? currentBooking.getArrivalTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : ""},
+                {"Seat", currentBooking.getSeat()},
+                {"Booking ID", String.valueOf(currentBooking.getBookingId())},
+                {"Status", "CHECKED-IN"}
+            },
+            "Boarding_Pass_" + currentBooking.getBookingId() + ".pdf"
+        );
+        
+        JOptionPane.showMessageDialog(this, "Boarding pass generated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
     }//GEN-LAST:event_btnPrintPassActionPerformed
 
     private void btnFindBookingActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFindBookingActionPerformed
-        // TODO add your handling code here:
+        String passport = txtPassport.getText().trim();
+        if (passport.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a passport number.", "Missing Info", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        btnFindBooking.setEnabled(false);
+        btnFindBooking.setText("Searching...");
+        
+        clientStub.findBookingForCheckIn(passport, response -> {
+            SwingUtilities.invokeLater(() -> {
+                btnFindBooking.setEnabled(true);
+                btnFindBooking.setText("Find Booking");
+                
+                if (response.isSuccess() && response.getBooking() != null) {
+                    currentBooking = response.getBooking();
+                    displayBookingInfo();
+                    
+                    // Enable check-in button if not already checked in
+                    btnConfirmCheckIn.setEnabled(!currentBooking.isCheckedIn());
+                    btnPrintPass.setEnabled(currentBooking.isCheckedIn());
+                    
+                    // Auto-generate seat if not checked in
+                    if (!currentBooking.isCheckedIn()) {
+                        txtSeat.setText(""); // Will be auto-generated on confirm
+                    }
+                } else {
+                    clearFields();
+                    JOptionPane.showMessageDialog(this, 
+                        response.isSuccess() ? "No booking found for this passport." : "Search failed: " + response.getMessage(),
+                        response.isSuccess() ? "Not Found" : "Error", 
+                        response.isSuccess() ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.ERROR_MESSAGE);
+                }
+            });
+        });
     }//GEN-LAST:event_btnFindBookingActionPerformed
+
+    /**
+     * Display booking information in the form fields.
+     */
+    private void displayBookingInfo() {
+        if (currentBooking == null) {
+            clearFields();
+            return;
+        }
+        
+        txtPassengerName.setText(currentBooking.getPassengerName());
+        
+        // Format flight details
+        String flightInfo = currentBooking.getFlightNumber() + " | " 
+                + currentBooking.getOrigin() + " → " + currentBooking.getDestination()
+                + " | " + (currentBooking.getDepartureTime() != null ? 
+                    currentBooking.getDepartureTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "N/A");
+        txtFlightDetails.setText(flightInfo);
+        
+        // Show seat if assigned
+        if (currentBooking.getSeat() != null && !currentBooking.getSeat().isEmpty()) {
+            txtSeat.setText(currentBooking.getSeat());
+        }
+        
+        btnConfirmCheckIn.setEnabled(!currentBooking.isCheckedIn());
+        btnPrintPass.setEnabled(currentBooking.isCheckedIn());
+    }
+    
+    /**
+     * Clear all form fields.
+     */
+    private void clearFields() {
+        txtPassengerName.setText("");
+        txtFlightDetails.setText("");
+        txtSeat.setText("");
+        currentBooking = null;
+        btnConfirmCheckIn.setEnabled(false);
+        btnPrintPass.setEnabled(false);
+    }
 
     /**
      * @param args the command line arguments
