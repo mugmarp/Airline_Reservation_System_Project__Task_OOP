@@ -1,0 +1,33 @@
+# NetBeans build outputs
+build/
+dist/
+nbproject/private/
+
+# Compiled class files
+*.class
+
+# IDE/editor files
+*.swp
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated reports
+# src/generated_PDFs/  <-- tracked intentionally
+# *.pdf  <-- tracked intentionally in generated_PDFs
+
+# JAR files
+*.jar
+*.war
+*.ear
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
